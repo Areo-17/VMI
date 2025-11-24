@@ -2,17 +2,52 @@ import os
 import requests
 import json
 import random
+import logging
+import sys
+import time
 from dotenv import load_dotenv
-"""from kafka import KafkaProducer
-from kafka import KafkaConsumer"""
+from kafka import KafkaProducer
+from kafka import KafkaConsumer
+from kafka.errors import KafkaError
 
 load_dotenv()
 
 MOCK_API = os.environ.get('MOCKAROO_API')
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        # ARCHIVO: Para análisis histórico y troubleshooting
+        logging.FileHandler('data/producer.log', encoding="utf-8"),
+        # CONSOLA: Para feedback inmediato durante desarrollo
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+
+if sys.platform == 'win32':
+    sys.stdout.reconfigure(encoding= 'utf-8')
+    sys.stderr.reconfigure(encoding= 'utf-8')
+
+logger = logging.getLogger(__name__)
+
 # ---------------------- Kafka producer configuration ------------------------ #
 
+class KafkaProducerConf:
 
+    bootstrap_servers: str = "localhost:9092"
+
+    # Batch size value is defined in bytes
+    batch_size: int = 32000
+
+    # Latency. While higher the value, bigger the throughput but higher the lattency.
+    linger_ms = 8
+
+    # Producer buffer, also in bytes.
+    buffer_memory : int = 32000000
+
+    # Compression. It indicates the compression algorithm in which the messages will be compressed in order to reduced its size and be sent.
+    compression_type : str = "gzip"
 
 # ---------------------- Data generation using Mockaroo's API ---------------- #
 
@@ -29,7 +64,8 @@ class mock_data:
             params={
                 "key": self.api_key,
                 "count": count,
-                "format": format_
+                "format": format_,
+                "include_nulls": True
             },
             json=fields
         )
@@ -41,35 +77,201 @@ class mock_data:
         
         return petition.text
     
-    def create_payload():
+    def create_payload() -> dict:
         
         client = mock_data(MOCK_API)
 
         content_schema = [
-        {"name": "content_id", "type": "Row Number"},
-        {"name": "title", "type": "Movie Title"},
-        {"name": "genre", "type": "Custom List", "values": [
-            "Action", "Sci-Fi", "Fantasy", "Adventure", "Drama", "Technology", "Crime", "Mystery"
-        ]},
-        {"name": "type", "type": "Custom List", "values": ["Movie", "Series"]},
-        {"name": "release_year", "type": "Number", "min": 1970, "max": 2025, "decimals": 0},
-        {"name": "rating", "type": "Number", "min": 1, "max": 5, "decimals": 2},
-        {"name": "views_count", "type": "Number", "min": 1000, "max": 100000, "decimals": 0},
-        {"name": "production_budget", "type": "Number", "min": 1000000, "max": 200000000}
+        {
+            "name": "transaction_id",
+            "type": "GUID"
+        },
+        {
+            "name": "transaction_date",
+            "type": "Datetime",
+            "min": "01/01/2021",
+            "max":"11/24/2025",
+            "format":"%Y/%m/%d"
+        },
+        {
+            "name": "transaction_time",
+            "type": "Time",
+            "min": "05:00 AM",
+            "max": "23:00 PM",
+            "format": "%H:%M:%S"
+        },
+        {
+            "name": "is_va_y_ven_system",
+            "type": "Formula",
+            "value": "transaction_date >= '2021/11/27'"
+        },
+        {
+            "name": "service_provider",
+            "type": "Formula",
+            "value": "is_va_y_ven_system ? 'Va-y-Ven (ATY)' : 'Traditional Bus Company'"
+        },
+        {
+            "name": "routes_vayven",
+            "type": "Custom List",
+            "values": [
+            'Urban/Metropolitan Circuito',
+            'Ie-Tram Corridor'
+            ]
+        },
+        {
+            "name": "routes_alt",
+            "type": "Custom List",
+            "values": [
+            'Urban/Feeder Route',
+            'Suburban/Connecting Route'
+            ]
+        },
+        {
+            "name": "route_type",
+            "type": "Formula",
+            "value": "is_va_y_ven_system ? routes_vayven : routes_alt"
+        },
+        {
+            "name": "boarding_area",
+            "type": "Custom List",
+            "values": [
+            "Centro (Downtown)",
+            "North Zone (Altabrisa/Montejo)",
+            "West Zone (Caucel/Juan Pablo II)",
+            "East Zone (Vergel/Kanasín)",
+            "South Zone (Emiliano Zapata Sur/San Haroldo)",
+            "Circuito Route Stop"
+            ],
+            "weights": [35, 15, 15, 15, 10, 10]
+        },
+        {
+            "name": "alighting_area",
+            "type": "Custom List",
+            "values": [
+            "Centro (Downtown)",
+            "North Zone (Altabrisa/Montejo)",
+            "West Zone (Caucel/Juan Pablo II)",
+            "East Zone (Vergel/Kanasín)",
+            "South Zone (Emiliano Zapata Sur/San Haroldo)",
+            "University/School/Work Area"
+            ],
+            "weights": [25, 15, 15, 15, 10, 20]
+        },
+        {
+            "name": "payment_method",
+            "type": "Custom List",
+            "values": ["QR", "Card"]
+        },
+        {
+            "name": "fare_type",
+            "type": "Custom List",
+            "values": ["Regular", "Student/Senior/Disability"],
+            "weights": [60, 40]
+        },
+        {
+            "name": "alt_fare_amount",
+            "type": "Custom List",
+            "values": ["5", "2.50", "0"]
+        },
+        {
+            "name": "fare_amount_mxn",
+            "type": "Formula",
+            "value": "fare_type == 'Regular' ? 12 : alt_fare_amount"
+        },
+        {
+            "name": "trip_duration_minutes",
+            "type": "Formula",
+            "value": "route_type == 'Urban/Metropolitan Circuito' ? random(30, 90) : (route_type == 'Urban/Feeder Route' ? random(15, 60) : (route_type == 'Ie-Tram Corridor' ? random(10, 45) : random(45, 120)))"
+        },
+        {
+            "name": "is_peak_hour",
+            "type": "Formula",
+            "value": "((time(transaction_time) >= '6' && time(transaction_time) <= '9') || (time(transaction_time) >= '17' && time(transaction_time) <= '20'))"
+        },
+        {
+            "name": "passenger_count",
+            "type": "Formula",
+            "value": "is_va_y_ven_system ? random(0,85) : 1"
+        }
         ]
 
-        payload = client.generate_data(fields = content_schema, count = 2, format_ = "json")
+        payload = client.generate_data(fields = content_schema, count = 1, format_ = "json")
         payload_list = json.loads(payload)
-        payload_json = payload_list[0]
-        if payload_json['type'] == "Movie":
-            payload_json['duration_minutes'] = random.randint(0, 360)
-        else:
-            payload_json['seasons'] = random.randint(1, 15)
-            #IMPORTANT: the key 'episodes_per_season' should be a list with a length of the of the number of seasons, each item with a random integer number. Pending to fix in a future update.
-            payload_json['episodes_per_season'] = random.uniform(3,30)
-            payload_json['avg_episode_duration'] = random.uniform(20,60)
+        return payload_list
+    
+# ---------------------- Kafka producer development ------------------------ #
+
+class KafkaStream:
+
+    def __init__(self, config: KafkaProducerConf):
+        self.config = config
+    
+        self.producer = self._initiate_kafka_producer()
+
+        self.generator_class = mock_data
+
+        self.topics = {
+
+            "transportation stats": self.generator_class.create_payload
+        }
+
+    def _initiate_kafka_producer(self) -> KafkaProducer:
         
-        return payload_json
+        try: 
+            producer = KafkaProducer(
+            
+            batch_size = self.config.batch_size,
+            bootstrap_servers = self.config.bootstrap_servers,
+            linger_ms = self.config.linger_ms,
+            buffer_memory = self.config.buffer_memory,
+            compression_type = self.config.compression_type,
+            retries = 3,
+            ack = 'all'
+            )
+        
+            logger.info(f"Successfully connected to kafka producers in {self.config.bootstrap_servers}")
+            return producer
+        
+        except KafkaError as e:
+            logger.info(f'Could not connect to Kafka producer due to {e}')
+            raise
+
+    def send_data(self, my_topic: str, event: dict):
+        try:
+            future = self.producer.send(
+                topic = my_topic,
+                value = event,
+                key = event.get('transaction_id')
+            )
+
+            future.add_callback(self.successful_sent)
+
+
+            future.add_errback(self.failed_event)
+        except Exception as e:
+            raise f"Failed to sent the event to the topic {my_topic} due to {e}"
+    
+    def successful_sent(self, record_metadata):
+        logger.debug(f"The event was successfully to the topic {record_metadata.topic} in the partition {record_metadata.partition}")
+
+    def failed_event(self, exception):
+        logger.debug(f"The event was could not be sent. Error {exception}")
+
+    def run_producer(self, duration: int = 1, event_name: str = 'transportation stats', event_count: int = 2):
+
+        event_generation = self.topics[event_name]
+        end_time = time.time() + (duration * 60)
+        generation_interval = 1 / event_count
+        try:
+            while time.time() <= end_time:
+                event = event_generation()
+                self.send_data(event_name, event)
+
+                time.sleep(generation_interval)
+        except KeyboardInterrupt:
+            logger.info("Events sending stopped by the user.")
+
+        
 
 if __name__ == '__main__':
     
