@@ -59,7 +59,7 @@ itsdangerous==2.2.0
 Jinja2==3.1.6
 jsonschema==4.25.1
 jsonschema-specifications==2025.9.1
-kafka-python==2.2.15
+kafka-python==2.3.0
 kombu==5.5.4
 lazy-object-proxy==1.12.0
 libcst==1.8.6
