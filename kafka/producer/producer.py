@@ -5,6 +5,7 @@ import random
 import logging
 import sys
 import time
+from dataclasses import dataclass
 from dotenv import load_dotenv
 from kafka import KafkaProducer
 from kafka import KafkaConsumer
@@ -30,24 +31,6 @@ if sys.platform == 'win32':
     sys.stderr.reconfigure(encoding= 'utf-8')
 
 logger = logging.getLogger(__name__)
-
-# ---------------------- Kafka producer configuration ------------------------ #
-
-class KafkaProducerConf:
-
-    bootstrap_servers: str = "localhost:9092"
-
-    # Batch size value is defined in bytes
-    batch_size: int = 32000
-
-    # Latency. While higher the value, bigger the throughput but higher the lattency.
-    linger_ms = 8
-
-    # Producer buffer, also in bytes.
-    buffer_memory : int = 32000000
-
-    # Compression. It indicates the compression algorithm in which the messages will be compressed in order to reduced its size and be sent.
-    compression_type : str = "gzip"
 
 # ---------------------- Data generation using Mockaroo's API ---------------- #
 
@@ -199,6 +182,24 @@ class mock_data:
         payload_list = json.loads(payload)
         return payload_list
     
+# ---------------------- Kafka producer configuration ------------------------ #
+@dataclass
+class KafkaProducerConf:
+
+    bootstrap_servers: str = "localhost:9092"
+
+    # Batch size value is defined in bytes
+    batch_size: int = 32000
+
+    # Latency. While higher the value, bigger the throughput but higher the lattency.
+    linger_ms = 8
+
+    # Producer buffer, also in bytes.
+    buffer_memory : int = 32000000
+
+    # Compression. It indicates the compression algorithm in which the messages will be compressed in order to reduced its size and be sent.
+    compression_type : str = "gzip"
+    
 # ---------------------- Kafka producer development ------------------------ #
 
 class KafkaStream:
@@ -208,11 +209,11 @@ class KafkaStream:
     
         self.producer = self._initiate_kafka_producer()
 
-        self.generator_class = mock_data
+        self.generator = mock_data
 
         self.topics = {
 
-            "transportation stats": self.generator_class.create_payload
+            "transportation-stats": self.generator.create_payload
         }
 
     def _initiate_kafka_producer(self) -> KafkaProducer:
@@ -220,13 +221,15 @@ class KafkaStream:
         try: 
             producer = KafkaProducer(
             
-            batch_size = self.config.batch_size,
             bootstrap_servers = self.config.bootstrap_servers,
+            batch_size = self.config.batch_size,
+            value_serializer=lambda x: json.dumps(x, ensure_ascii=False).encode('utf-8'),
+            key_serializer=lambda x: x.encode('utf-8') if x else None,
             linger_ms = self.config.linger_ms,
             buffer_memory = self.config.buffer_memory,
             compression_type = self.config.compression_type,
             retries = 3,
-            ack = 'all'
+            acks = 'all'
             )
         
             logger.info(f"Successfully connected to kafka producers in {self.config.bootstrap_servers}")
@@ -248,16 +251,17 @@ class KafkaStream:
 
 
             future.add_errback(self.failed_event)
+
         except Exception as e:
-            raise f"Failed to sent the event to the topic {my_topic} due to {e}"
+           logger.error(f"Failed to sent the event to the topic {my_topic} due to {e}")
     
     def successful_sent(self, record_metadata):
         logger.debug(f"The event was successfully to the topic {record_metadata.topic} in the partition {record_metadata.partition}")
 
     def failed_event(self, exception):
-        logger.debug(f"The event was could not be sent. Error {exception}")
+        logger.debug(f"The event could not be sent. Error {exception}")
 
-    def run_producer(self, duration: int = 1, event_name: str = 'transportation stats', event_count: int = 2):
+    def run_producer(self, duration: float = 0.2, event_name: str = 'transportation-stats', event_count: int = 2):
 
         event_generation = self.topics[event_name]
         end_time = time.time() + (duration * 60)
@@ -267,13 +271,28 @@ class KafkaStream:
                 event = event_generation()
                 self.send_data(event_name, event)
 
+                logger.info(f"Event sent with the following information: {event}")
+
                 time.sleep(generation_interval)
         except KeyboardInterrupt:
             logger.info("Events sending stopped by the user.")
+        finally:
+            self._cleanup()
+    
+    def _cleanup(self):
+        """Clean up resources"""
+        logger.info("Cleaning up producer resources...")
+        self.producer.flush()  # Ensure all messages are sent
+        self.producer.close()
+        logger.info("Producer shutdown complete")
 
-        
+def main():
+    
+    config = KafkaProducerConf(bootstrap_servers="localhost:29092")
+    producer = KafkaStream(config)
+
+    producer.run_producer()
 
 if __name__ == '__main__':
     
-    payload = mock_data.create_payload()
-    print(payload)
+    main()
