@@ -1,5 +1,9 @@
 my_kafka/.env
-
+airflow/logs/*
+data/*
+airflow/plugins/*
+airflow/config/*
+airflow/data/*
 utils/preprocessing.ipynb
 Base_dockercompose.txt
 Base_dockerfile.txt
