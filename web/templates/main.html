@@ -3,13 +3,197 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>U3 project</title>
-    <link rel="stylesheet" href=" {{url_for ('static', filename= 'css/main.css') }}">
+    <title>Congress Twitter Network Analytics</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏛️</text></svg>">
+    
+    <!-- D3.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    
+    <!-- Tabler Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+    
+    <!-- CSS - Relative path from templates to static -->
+    <link rel="stylesheet" href="../static/css/main.css">
 </head>
 <body>
+    <div class="dashboard">
+        <!-- Header -->
+        <div class="header">
+            <h1>Congress Twitter Network Analytics</h1>
+            <p>Social Network Analysis of U.S. Congress</p>
+            
+            <!-- Back Button -->
+            <button class="back-button" onclick="window.history.back()">
+                <i class="ti ti-arrow-left"></i>
+                <span>Back</span>
+            </button>
+        </div>
 
-    <h1>
-        Project Unit 3
-    </h1>    
+        <!-- Tab System -->
+        <div class="tabs">
+            <button class="tab-button active" data-tab="overview" onclick="changeTab('overview')">
+                <i class="ti ti-network"></i>
+                <span>Overview</span>
+            </button>
+            <button class="tab-button" data-tab="influencers" onclick="changeTab('influencers')">
+                <i class="ti ti-crown"></i>
+                <span>Influencers</span>
+            </button>
+            <button class="tab-button" data-tab="interactions" onclick="changeTab('interactions')">
+                <i class="ti ti-messages"></i>
+                <span>Interactions</span>
+            </button>
+            <button class="tab-button" data-tab="communities" onclick="changeTab('communities')">
+                <i class="ti ti-users-group"></i>
+                <span>Communities</span>
+            </button>
+        </div>
+
+        <!-- Tab 1: Overview -->
+        <div id="overview" class="tab-content active">
+            <!-- Network Graph -->
+            <div class="chart-container">
+                <div class="chart-title">
+                    <i class="ti ti-network"></i>
+                    Network Visualization
+                </div>
+                <div class="chart-description">
+                    Interactive visualization of the <strong>Congressional Twitter network</strong>. 
+                    Node size represents PageRank centrality, colors indicate community membership. 
+                    Drag nodes to explore connections. Network contains <strong>475 nodes</strong> 
+                    and <strong>13,289 edges</strong>.
+                </div>
+                <div id="network-graph" style="width: 100%; height: 600px;"></div>
+            </div>
+
+            <!-- Chart Grid -->
+            <div class="chart-grid">
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="ti ti-chart-pie"></i>
+                        Community Distribution
+                    </div>
+                    <div class="chart-description">
+                        Distribution of Congress members across <strong>3 detected communities</strong> 
+                        with modularity of <strong>0.3998</strong>.
+                    </div>
+                    <div id="community-distribution" style="width: 100%; height: 400px;"></div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="ti ti-chart-bar"></i>
+                        Degree Distribution
+                    </div>
+                    <div class="chart-description">
+                        Distribution of connection degrees across network members.
+                    </div>
+                    <div id="degree-distribution" style="width: 100%; height: 400px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Influencers -->
+        <div id="influencers" class="tab-content">
+            <!-- Centrality Metric Selector -->
+            <div class="selector-container">
+                <label for="centrality-metric">
+                    <i class="ti ti-chart-line"></i>
+                    Select Centrality Metric:
+                </label>
+                <select id="centrality-metric" onchange="updateCentralityMetric()">
+                    <option value="pagerank">PageRank</option>
+                    <option value="betweenness">Betweenness</option>
+                    <option value="indegree">In-Degree</option>
+                </select>
+            </div>
+
+            <!-- Top Influencers Chart -->
+            <div class="chart-container">
+                <div class="chart-title">
+                    <i class="ti ti-crown"></i>
+                    Top 10 Influencers
+                </div>
+                <div class="chart-description description-text">
+                    Ranking of most influential Congress members by PageRank. This metric identifies members who are connected to other highly connected members, indicating overall network importance.
+                </div>
+                <div id="top-influencers" style="width: 100%; height: 500px;"></div>
+            </div>
+
+            <!-- Centrality Comparison -->
+            <div class="chart-container">
+                <div class="chart-title">
+                    <i class="ti ti-chart-dots"></i>
+                    Top 5 by Selected Metric
+                </div>
+                <div class="chart-description">
+                    Comparison of the top 5 members by the selected centrality metric.
+                </div>
+                <div id="centrality-comparison" style="width: 100%; height: 400px;"></div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Interactions -->
+        <div id="interactions" class="tab-content">
+            <div class="chart-grid">
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="ti ti-chart-pie"></i>
+                        Interaction Types
+                    </div>
+                    <div class="chart-description">
+                        Distribution of interaction types: Retweets, Mentions, Replies, and Quotes.
+                    </div>
+                    <div id="interaction-types" style="width: 100%; height: 400px;"></div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="ti ti-timeline"></i>
+                        Temporal Evolution
+                    </div>
+                    <div class="chart-description">
+                        Time series of interactions over a 30-day period.
+                    </div>
+                    <div id="temporal-evolution" style="width: 100%; height: 400px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Communities -->
+        <div id="communities" class="tab-content">
+            <div class="chart-grid">
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="ti ti-chart-bar"></i>
+                        Community Analysis
+                    </div>
+                    <div class="chart-description">
+                        Size comparison of detected communities.
+                    </div>
+                    <div id="community-analysis" style="width: 100%; height: 400px;"></div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="chart-title">
+                        <i class="ti ti-circles"></i>
+                        Community Connections
+                    </div>
+                    <div class="chart-description">
+                        Inter-community connection strength visualization.
+                    </div>
+                    <div id="community-connections" style="width: 100%; height: 400px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Tooltip -->
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- JavaScript - Relative path from templates to static -->
+    <script src="../static/js/main.js"></script>
 </body>
 </html>

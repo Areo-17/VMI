@@ -17,8 +17,10 @@ def consumer_kafka():
     consumer = KafkaConsumer(
         'transportation-stats',
         bootstrap_servers=['localhost:29092'],
+        group_id='transportation-group',
         value_deserializer=lambda x: json.loads(x.decode('utf-8')),
         auto_offset_reset='earliest',
+        consumer_timeout_ms= 5000,
         enable_auto_commit=True
     )
 
@@ -31,12 +33,15 @@ def consumer_kafka():
             records.append(event)
 
             df = pd.DataFrame(records)
-            df.to_csv(OUTPUT_PATH, index=False)
+            df.to_csv(f"{OUTPUT_PATH}/transportation.csv", index=False)
+    
+    except StopIteration:
+        print("No messages received in the last 5 seconds. Shutting down the consumer.")
 
     except KeyboardInterrupt:
         logger.info("Stopping consumer...")
         df = pd.DataFrame(records)
-        df.to_csv(OUTPUT_PATH, index=False)
+        df.to_csv(f"{OUTPUT_PATH}/transportation.csv", index=False)
 
     finally:
         logger.info(f"CSV saved to: {OUTPUT_PATH}")

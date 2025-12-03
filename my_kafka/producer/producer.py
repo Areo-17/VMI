@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 # ---------------------- Data generation using Mockaroo's API ---------------- #
 
-class mock_data:
+class MockData:
 
     mock_url = "https://api.mockaroo.com/api/generate"
 
@@ -62,7 +62,7 @@ class mock_data:
     
     def create_payload() -> dict:
         
-        client = mock_data(MOCK_API)
+        client = MockData(MOCK_API)
 
         content_schema = [
         {
@@ -72,7 +72,7 @@ class mock_data:
         {
             "name": "transaction_date",
             "type": "Datetime",
-            "min": "01/01/2021",
+            "min": "11/01/2025",
             "max":"11/24/2025",
             "format":"%Y/%m/%d"
         },
@@ -143,7 +143,8 @@ class mock_data:
         {
             "name": "payment_method",
             "type": "Custom List",
-            "values": ["QR", "Card"]
+            "values": ["QR", "Card"],
+            "weights": [15, 85]
         },
         {
             "name": "fare_type",
@@ -159,7 +160,7 @@ class mock_data:
         {
             "name": "fare_amount_mxn",
             "type": "Formula",
-            "value": "fare_type == 'Regular' ? 12 : alt_fare_amount"
+            "value": "fare_type == 'Regular' ? 12 : payment_method == 'QR' ? 12 : alt_fare_amount"
         },
         {
             "name": "trip_duration_minutes",
@@ -209,7 +210,7 @@ class KafkaStream:
     
         self.producer = self._initiate_kafka_producer()
 
-        self.generator = mock_data
+        self.generator = MockData
 
         self.topics = {
 
@@ -261,7 +262,7 @@ class KafkaStream:
     def failed_event(self, exception):
         logger.debug(f"The event could not be sent. Error {exception}")
 
-    def run_producer(self, duration: float = 0.2, event_name: str = 'transportation-stats', event_count: int = 2):
+    def run_producer(self, duration: float = 0.5, event_name: str = 'transportation-stats', event_count: int = 2):
 
         event_generation = self.topics[event_name]
         end_time = time.time() + (duration * 60)
@@ -286,7 +287,7 @@ class KafkaStream:
         self.producer.close()
         logger.info("Producer shutdown complete")
 
-def main():
+def run_everything():
     
     config = KafkaProducerConf(bootstrap_servers="localhost:29092")
     producer = KafkaStream(config)
@@ -295,4 +296,4 @@ def main():
 
 if __name__ == '__main__':
     
-    main()
+    run_everything()
