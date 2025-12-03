@@ -1,4 +1,4 @@
-# D
+# Data streaming: Airflow and Kafka for ETL and ELT processes
 
 This repository contains the U3 project and its checkpoints.
 
