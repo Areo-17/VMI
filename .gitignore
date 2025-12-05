@@ -7,6 +7,7 @@ airflow/data/*
 utils/preprocessing.ipynb
 Base_dockercompose.txt
 Base_dockerfile.txt
+.env
 
 #Pycache folders
 

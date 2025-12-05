@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 from kafka import KafkaProducer
 from kafka import KafkaConsumer
 from kafka.errors import KafkaError
+import uuid
+from datetime import datetime
 
 load_dotenv()
 
@@ -181,7 +183,33 @@ class MockData:
 
         payload = client.generate_data(fields = content_schema, count = 1, format_ = "json")
         payload_list = json.loads(payload)
+        # Mockaroo returns a list when count>1; we request 1 so take first element
+        if isinstance(payload_list, list) and len(payload_list) > 0:
+            return payload_list[0]
         return payload_list
+
+def make_local_payload() -> dict:
+    """Generate a small deterministic payload for local development when
+    Mockaroo API key is not available."""
+    now = datetime.utcnow()
+    return {
+        "transaction_id": str(uuid.uuid4()),
+        "transaction_date": now.strftime("%Y/%m/%d"),
+        "transaction_time": now.strftime("%H:%M:%S"),
+        "is_va_y_ven_system": True,
+        "service_provider": "Va-y-Ven (ATY)",
+        "routes_vayven": "Urban/Metropolitan Circuito",
+        "routes_alt": "Urban/Feeder Route",
+        "route_type": "Urban/Metropolitan Circuito",
+        "boarding_area": "Centro (Downtown)",
+        "alighting_area": "Centro (Downtown)",
+        "payment_method": "QR",
+        "fare_type": "Regular",
+        "alt_fare_amount": "5",
+        "fare_amount_mxn": 12,
+        "trip_duration_minutes": 30,
+        "passenger_count": 1
+    }
     
 # ---------------------- Kafka producer configuration ------------------------ #
 @dataclass
@@ -209,13 +237,13 @@ class KafkaStream:
         self.config = config
     
         self.producer = self._initiate_kafka_producer()
-
-        self.generator = MockData
-
-        self.topics = {
-
-            "transportation-stats": self.generator.create_payload
-        }
+        # Use MockData when MOCKAROO_API is set, otherwise use a local generator
+        if MOCK_API:
+            self.generator = MockData
+            self.topics = {"transportation-stats": self.generator.create_payload}
+        else:
+            self.generator = None
+            self.topics = {"transportation-stats": make_local_payload}
 
     def _initiate_kafka_producer(self) -> KafkaProducer:
         
@@ -262,7 +290,7 @@ class KafkaStream:
     def failed_event(self, exception):
         logger.debug(f"The event could not be sent. Error {exception}")
 
-    def run_producer(self, duration: float = 0.5, event_name: str = 'transportation-stats', event_count: int = 2):
+    def run_producer(self, duration: float = 0.1, event_name: str = 'transportation-stats', event_count: int = 2):
 
         event_generation = self.topics[event_name]
         end_time = time.time() + (duration * 60)
@@ -289,7 +317,7 @@ class KafkaStream:
 
 def run_everything():
     
-    config = KafkaProducerConf(bootstrap_servers="localhost:29092")
+    config = KafkaProducerConf(bootstrap_servers="kafka:29092")
     producer = KafkaStream(config)
 
     producer.run_producer()

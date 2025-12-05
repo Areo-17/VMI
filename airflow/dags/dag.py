@@ -26,16 +26,14 @@ def etl_dag():
 
     @task
     def transform():
-        BASE_PATH = os.path.dirname(os.path.abspath(__file__))
-        FILE_PATH = os.path.abspath(os.path.join(BASE_PATH, "..", "data"))
+        FILE_PATH = '/opt/airflow/plugins/data'
         cleaning = Transformer(f'{FILE_PATH}/transportation.csv', f'{FILE_PATH}/processed.csv')
         data = cleaning.transformation()
-        return data.to_json()
+        return data.to_json(orient='records')
 
     @task
     def load(data_processed):
-        BASE_PATH = os.path.dirname(os.path.abspath(__file__))
-        FILE_PATH = os.path.abspath(os.path.join(BASE_PATH, "..", "data"))
+        FILE_PATH = '/opt/airflow/plugins/data'
         cleaned_file = pd.read_json(data_processed)
         load_file = Transformer(data=None, saving_path=f'{FILE_PATH}/processed.csv')
         load_file.loader(cleaned_file)
@@ -45,6 +43,7 @@ def etl_dag():
     t = transform()
     l = load(t)
 
+    # Enforce sequential execution: producer → consumer → transform → load
     e >> e_2 >> t >> l
 
 etl_dag()
