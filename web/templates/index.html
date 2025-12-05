@@ -5,18 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Project U3</title>
     
-    <!-- Favicon - Statistical Chart Icon -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232563eb' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M3 3v18h18'/><path d='M18 17V9'/><path d='M13 17v-6'/><path d='M8 17v-3'/></svg>">
     
-    <!-- CSS -->
     <link rel="stylesheet" href="../static/css/index.css">
     
-    <!-- Tabler Icons -->
     <link rel="preload" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" as="style">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 </head>
 <body>
-    <!-- Configuration for routes -->
     <div id="route-config"
          data-home-url="/"
          data-checkpoint1-url="/portfolio/unit2/checkpoint1"
@@ -26,16 +22,9 @@
     </div>
 
     <div class="container">
-        <!-- Header -->
         <header class="header">
             <div class="header-content">
-                <!-- Back button -->
-                <button class="back-to-home-btn" onclick="goToHome()">
-                    <i class="ti ti-arrow-left"></i>
-                    <span>Back to Home</span>
-                </button>
                 
-                <!-- Icon and Title - Inline -->
                 <div class="header-title-wrapper">
                     <div class="header-icon">
                         <i class="ti ti-chart-line"></i>
@@ -43,7 +32,6 @@
                     <h1>Unit 3: Data streaming visualization</h1>
                 </div>
                 
-                <!-- Team Members -->
                 <div class="team-members">
                     <span class="member-name">Sergio Barrera</span>
                     <span class="member-name">Ariel Buenfil</span>
@@ -55,31 +43,51 @@
             </div>
         </header>
 
-        <!-- Main Content -->
         <main class="main-content">
             <div class="checkpoints-container" id="checkpointsContainer">
-                <!-- Checkpoints will be generated dynamically by JS -->
-            </div>
+                
+                <div class="checkpoint-card">
+                    <div class="checkpoint-header">
+                        <div class="checkpoint-number">✓</div>
+                        
+                        <div class="checkpoint-status completed">
+                            <i class="ti ti-circle-check"></i>
+                            <span>Completed</span>
+                        </div>
+                    </div>
+                    
+                    <div class="checkpoint-content">
+                        <h3>Data streaming visualization</h3>
+                        <p class="checkpoint-description">Public transportation minimal dashboard which aims to show which routes are the most used and the distribution of the usage based on the fare type.</p>
+                        
+                        <div class="checkpoint-topics">
+                            <div class="checkpoint-topics-list">
+                                <span class="topic-tag">Bar chart</span>
+                                <span class="topic-tag">Time series chart</span>
+                                <span class="topic-tag">1 KPI</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="checkpoint-footer">
+                        <a class="view-btn" href="{{ url_for ('dashboard')}}">
+                            <i class="ti ti-arrow-right"></i>
+                            <span>Go to dashboard</span>
+                        </a>
+                        <span class="checkpoint-completion">Completed: Nov 3, 2024</span>
+                    </div>
+                </div>
+                </div>
 
-            <!-- Loading indicator -->
-            <div class="loading-container" style="display: none;">
-                <div class="loading-spinner"></div>
-                <p>Loading checkpoints...</p>
-            </div>
-        </main>
+            </main>
 
-        <!-- Footer -->
         <footer class="footer">
             <p>Unit 3 project - <span id="current-year"></span></p>
         </footer>
     </div>
 
-    <!-- JavaScript -->
-    <script src="../static/js/index.js"></script>
-
-    <!-- Initialization Script -->
     <script>
-        // Update current year
+        // Update current year (Simple Vanilla JS is okay)
         document.addEventListener('DOMContentLoaded', () => {
             const yearElement = document.getElementById('current-year');
             if (yearElement) {
@@ -87,15 +95,10 @@
             }
         });
 
-        // Function to go back to home
+        // Function to go back to home (Kept as a stub)
         function goToHome() {
             window.location.href = '/';
         }
-
-        // Global error handling
-        window.addEventListener('error', (e) => {
-            console.error('Global error:', e.error);
-        });
     </script>
 </body>
 </html>
