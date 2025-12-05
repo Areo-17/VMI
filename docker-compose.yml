@@ -137,34 +137,36 @@ services:
       retries: 10
       start_period: 30s
     restart: always
+  
+  # =============== Kafka UI service commented out due to container size. Uncomment it if you want to use it. ================== #
 
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    container_name: kafka-ui-project
-    ports:
-      - "8082:8080"
-    depends_on:
-      kafka:
-        condition: service_healthy
-      schema-registry:
-        condition: service_healthy
-      kafka-connect:
-        condition: service_healthy
-    environment:
-      KAFKA_CLUSTERS_0_NAME: "confluent-cluster"
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
-      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: "http://schema-registry:8081"
-      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: "connect"
-      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: "http://kafka-connect:8083"
-    networks:
-      - airflow-net
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-      start_period: 20s
-    restart: always
+  #kafka-ui:
+  #  image: provectuslabs/kafka-ui:latest
+  #  container_name: kafka-ui-project
+  #  ports:
+  #    - "8082:8080"
+  #  depends_on:
+  #    kafka:
+  #      condition: service_healthy
+  #    schema-registry:
+  #      condition: service_healthy
+  #    kafka-connect:
+  #      condition: service_healthy
+  #  environment:
+  #    KAFKA_CLUSTERS_0_NAME: "confluent-cluster"
+  #    KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
+  #    KAFKA_CLUSTERS_0_SCHEMAREGISTRY: "http://schema-registry:8081"
+  #    KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: "connect"
+  #    KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: "http://kafka-connect:8083"
+  #  networks:
+  #    - airflow-net
+  #  healthcheck:
+  #    test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+  #    interval: 10s
+  #    timeout: 10s
+  #    retries: 10
+  #    start_period: 20s
+  #  restart: always
   
   postgres:
     image: postgres:16

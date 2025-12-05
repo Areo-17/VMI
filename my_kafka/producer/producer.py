@@ -17,12 +17,23 @@ load_dotenv()
 
 MOCK_API = os.environ.get('MOCKAROO_API')
 
+# Determine output path for files/logs. Prefer explicit env var `TRANSPORT_OUTPUT_PATH`,
+# otherwise use Airflow's shared data folder `/opt/airflow/data` so files persist on host.
+OUTPUT_PATH = os.environ.get('TRANSPORT_OUTPUT_PATH') or os.path.join(
+    os.environ.get('AIRFLOW_HOME', '/opt/airflow'), 'data'
+)
+try:
+    os.makedirs(OUTPUT_PATH, exist_ok=True)
+except Exception:
+    # If cannot create (permissions), proceed and let logging module handle errors
+    pass
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         # ARCHIVO: Para análisis histórico y troubleshooting
-        logging.FileHandler('data/producer.log', encoding="utf-8"),
+        logging.FileHandler(os.path.join(OUTPUT_PATH, 'producer.log'), encoding="utf-8"),
         # CONSOLA: Para feedback inmediato durante desarrollo
         logging.StreamHandler(sys.stdout)
     ]
@@ -317,7 +328,7 @@ class KafkaStream:
 
 def run_everything():
     
-    config = KafkaProducerConf(bootstrap_servers="kafka:29092")
+    config = KafkaProducerConf(bootstrap_servers="kafka:9092")
     producer = KafkaStream(config)
 
     producer.run_producer()

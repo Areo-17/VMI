@@ -10,10 +10,17 @@ class Transformer:
 
         self.data = data
         self.saving_path = saving_path
-        try:
-            self.df = pd.read_csv(self.data)
-        except:
-            raise FileNotFoundError(f"The path {data} does not exist. Check the string typed.")
+        
+        # --- START OF FIX ---
+        if self.data is not None:
+            try:
+                self.df = pd.read_csv(self.data)
+            except Exception:
+                # Catch any error during read and raise a FileNotFoundError (or the specific error if desired)
+                raise FileNotFoundError(f"The path {data} does not exist or file is unreadable. Check the string typed.")
+        else:
+            # If data is None, we skip reading the file. This instance is for saving/loading only.
+            self.df = None
 
     def drop_columns(self):
 
@@ -80,8 +87,11 @@ class Transformer:
         return df_final
 
     def loader(self, df_processed: pd.DataFrame):
-        df_processed.to_csv(f'{self.saving_path}', index= False)
-        return print(f'Processed dataset successfully saved in {self.saving_path}.')
+        if self.data == None:
+            df_processed.to_csv(f'{self.saving_path}', index= False)
+            return print(f'Processed dataset successfully saved in {self.saving_path}.')
+        else:
+            return print(f'Processed dataset successfully saved in {self.saving_path}.')
     
 if __name__ == '__main__':
     

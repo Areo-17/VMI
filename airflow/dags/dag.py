@@ -1,4 +1,5 @@
 import os
+import json
 import time
 import pandas as pd
 from datetime import datetime
@@ -22,25 +23,54 @@ def etl_dag():
     
     @task
     def extract_consumer():
-        consumer_kafka()
+        # Run consumer and return the path to the CSV it creates
+        return consumer_kafka()
 
     @task
-    def transform():
-        FILE_PATH = '/opt/airflow/plugins/data'
-        cleaning = Transformer(f'{FILE_PATH}/transportation.csv', f'{FILE_PATH}/processed.csv')
-        data = cleaning.transformation()
-        return data.to_json(orient='records')
+    def transform(consumed_path: str):
+        # If the consumer returned a path, use it. Otherwise fallback to standard path.
+        if consumed_path:
+            input_path = consumed_path
+        else:
+            input_path = '/opt/airflow/data/transportation.csv'
+
+        # Wait loop remains the same...
+
+        if not os.path.exists(input_path):
+            raise FileNotFoundError(f"The path {input_path} does not exist. Check the string typed.")
+
+        FILE_PATH = '/opt/airflow/data'
+        output_path = f'{FILE_PATH}/processed.csv'
+        
+        # 1. Instantiate the Transformer for cleaning
+        cleaning = Transformer(input_path, output_path)
+        data_cleaned = cleaning.transformation()
+        
+        # 2. Instantiate a loader (or use a simple pandas save, but using your class is fine)
+        # Note: We must pass the output_path as the saving_path here.
+        loader = Transformer(data=None, saving_path=output_path)
+        loader.loader(data_cleaned)
+        
+        # 3. Return the path to the saved file (small string, good for XCom)
+        return output_path # <-- Returns '/opt/airflow/data/processed.csv'
 
     @task
-    def load(data_processed):
-        FILE_PATH = '/opt/airflow/plugins/data'
-        cleaned_file = pd.read_json(data_processed)
-        load_file = Transformer(data=None, saving_path=f'{FILE_PATH}/processed.csv')
+    def load(data_processed_path: str): # <-- Receives the path string
+        # Re-read the saved file. This task can now be focused on actual loading 
+        # to a database, cloud storage, etc.
+        
+        cleaned_file = pd.read_csv(data_processed_path)
+        
+        # Save processed data into the shared data folder so it persists on host
+        FILE_PATH = '/opt/airflow/data'
+        load_file = Transformer(data=None, saving_path=f'{FILE_PATH}/final_data_warehouse_output.csv')
         load_file.loader(cleaned_file)
+        
+        print(f"Final data loaded from disk path: {data_processed_path}")
 
     e = extract_producer()
     e_2 = extract_consumer()
-    t = transform()
+    t = transform(e_2)
     l = load(t)
 
     # Enforce sequential execution: producer → consumer → transform → load
