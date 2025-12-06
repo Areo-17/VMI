@@ -69,6 +69,9 @@ services:
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      TOPICS: "transportation-stats,urban-sensors,product-events"
+      PRODUCER_DURATION_MIN: 0.1
+      PRODUCER_RATE: 2
     volumes:
       - kafka_data:/var/lib/kafka/data
     networks:
@@ -138,35 +141,36 @@ services:
       start_period: 30s
     restart: always
   
-  # =============== Kafka UI service commented out due to container size. Uncomment it if you want to use it. ================== #
+  # =============== Kafka UI service ================== #
+  # WARNING: Using Kafka UI alongside Airflow may result in very heavy container. If not needed, consider commenting out this service.
 
-  #kafka-ui:
-  #  image: provectuslabs/kafka-ui:latest
-  #  container_name: kafka-ui-project
-  #  ports:
-  #    - "8082:8080"
-  #  depends_on:
-  #    kafka:
-  #      condition: service_healthy
-  #    schema-registry:
-  #      condition: service_healthy
-  #    kafka-connect:
-  #      condition: service_healthy
-  #  environment:
-  #    KAFKA_CLUSTERS_0_NAME: "confluent-cluster"
-  #    KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
-  #    KAFKA_CLUSTERS_0_SCHEMAREGISTRY: "http://schema-registry:8081"
-  #    KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: "connect"
-  #    KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: "http://kafka-connect:8083"
-  #  networks:
-  #    - airflow-net
-  #  healthcheck:
-  #    test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
-  #    interval: 10s
-  #    timeout: 10s
-  #    retries: 10
-  #    start_period: 20s
-  #  restart: always
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui-project
+    ports:
+      - "8082:8080"
+    depends_on:
+      kafka:
+        condition: service_healthy
+      schema-registry:
+        condition: service_healthy
+      kafka-connect:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "confluent-cluster"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: "http://schema-registry:8081"
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: "connect"
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: "http://kafka-connect:8083"
+    networks:
+      - airflow-net
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    restart: always
   
   postgres:
     image: postgres:16
@@ -353,6 +357,24 @@ services:
       - airflow
     depends_on:
       <<: *airflow-common-depends-on
+
+  # =============== Web Visualization Service =============== #
+  web:
+    image: python:3.11-slim
+    container_name: web-dashboard
+    working_dir: /web
+    command: bash -c "pip install -q flask pandas bokeh && python app.py"
+    ports:
+      - "5200:5200"
+    volumes:
+      - ./web:/web
+      - ./data:/web/../data
+    environment:
+      FLASK_APP: app.py
+      FLASK_ENV: production
+    networks:
+      - airflow-net
+    restart: always
 
 networks:
   airflow-net:

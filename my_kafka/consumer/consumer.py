@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from kafka import KafkaConsumer
 import logging
 import json
@@ -8,19 +9,42 @@ logging.basicConfig(level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Use environment variable if provided; otherwise default to Airflow shared data folder
 OUTPUT_PATH = os.environ.get('TRANSPORT_OUTPUT_PATH') or os.path.join(
     os.environ.get('AIRFLOW_HOME', '/opt/airflow'), 'data'
 )
+try:
+    os.makedirs(OUTPUT_PATH, exist_ok=True)
+except Exception:
+    pass
 
-def consumer_kafka():
-    records = []
 
-    # Try to connect to Kafka; if it fails, create an empty CSV so downstream
-    # transform doesn't fail with FileNotFoundError.
-    out_file = os.path.join(OUTPUT_PATH, 'transportation.csv')
+def consumer_kafka(output_file=None, topics_list=None):
+    """
+    Kafka consumer capable of:
+      ✓ Subscribing to specific topics (via topics_list arg) or env var TOPICS
+      ✓ Writing 1 CSV per topic (multi-output mode)
+      ✓ Writing a single merged CSV (ELT mode) using `output_file=...`
 
-    # Ensure the destination directory exists
+    :param output_file: If set, writes all consumed records to this single file.
+    :param topics_list: List of strings (e.g. ['product-events']). Overrides env var.
+    """
+
+    # ----- Load topics -----
+    if topics_list:
+        topics = topics_list
+    else:
+        env_topics = os.environ.get("TOPICS")
+        if env_topics:
+            topics = [t.strip() for t in env_topics.split(",") if t.strip()]
+        else:
+            topics = ["transportation-stats", "urban-sensors"]
+
+    logger.info(f"Consumer will subscribe to: {topics}")
+
+    # Records grouped by topic
+    records_by_topic = {t: [] for t in topics}
+
+    # Ensure destination exists
     try:
         os.makedirs(OUTPUT_PATH, exist_ok=True)
     except Exception as e:
@@ -28,58 +52,84 @@ def consumer_kafka():
 
     try:
         consumer = KafkaConsumer(
-            'transportation-stats',
-            bootstrap_servers=['kafka:9092'],
-            group_id='transportation-group',
+            *topics,
+            bootstrap_servers=[os.environ.get("KAFKA_BOOTSTRAP", "kafka:9092")],
+            group_id=os.environ.get("KAFKA_CONSUMER_GROUP", "transportation-group"),
             value_deserializer=lambda x: json.loads(x.decode('utf-8')),
             auto_offset_reset='earliest',
-            consumer_timeout_ms=30000,
+            consumer_timeout_ms=int(os.environ.get("CONSUMER_TIMEOUT_MS", 30000)),
             enable_auto_commit=True
         )
-
-        logger.info('Connected to topic transportation-stats.')
+        logger.info(f"Connected to Kafka topics: {topics}")
 
     except Exception as e:
-        logger.warning(f"Could not instantiate KafkaConsumer: {e}. Creating empty CSV at {out_file} and returning.")
-        # Create empty dataframe file so downstream tasks have something to read
-        pd.DataFrame(records).to_csv(out_file, index=False, encoding='utf-8')
-        logger.info(f"Wrote 0 records to {out_file}")
-        return out_file
+        logger.warning(f"Could not instantiate KafkaConsumer: {e}. Returning empty output.")
 
+        # ELT mode → write empty single file
+        if output_file:
+            empty_path = os.path.join(OUTPUT_PATH, output_file)
+            pd.DataFrame([]).to_csv(empty_path, index=False)
+            return empty_path
+
+        return None
+
+    # ----- Message polling -----
     try:
         for message in consumer:
+            topic = message.topic
             event = message.value
-            logger.info(f"Event: {event}")
-            records.append(event)
+            logger.info(f"[{topic}] Event: {event}")
 
-            df = pd.DataFrame(records)
-            df.to_csv(out_file, index=False, encoding='utf-8')
-            logger.info(f"Wrote {len(records)} records to {out_file}")
+            # Append to topic list
+            records_by_topic.setdefault(topic, []).append(event)
+
+            # Multi-output mode: write one CSV per topic on every message
+            if not output_file:
+                out_file = os.path.join(OUTPUT_PATH, f"{topic.replace('/', '_')}.csv")
+                try:
+                    pd.DataFrame(records_by_topic[topic]).to_csv(out_file, index=False)
+                except Exception as e:
+                    logger.warning(f"Failed writing CSV for topic {topic}: {e}")
 
     except StopIteration:
-        logger.info("No messages received in the last 30 seconds. Shutting down the consumer.")
-
+        logger.info("Timeout reached, stopping consumer.")
     except KeyboardInterrupt:
-        logger.info("Stopping consumer...")
-
+        logger.info("Consumer interrupted manually.")
     finally:
-        # Ensure file is written even if loop exits with no messages
-        try:
-            pd.DataFrame(records).to_csv(out_file, index=False, encoding='utf-8')
-            logger.info(f"Final write: Wrote {len(records)} records to {out_file}")
-        except Exception as e:
-            logger.warning(f"Failed writing CSV to {out_file}: {e}")
+        # FINAL WRITE
+        if not output_file:
+            # Multi-output mode: write each topic separately
+            for t, recs in records_by_topic.items():
+                out_file = os.path.join(OUTPUT_PATH, f"{t.replace('/', '_')}.csv")
+                pd.DataFrame(recs).to_csv(out_file, index=False)
+            
+            try:
+                consumer.close()
+            except Exception:
+                pass
+            return None
 
-        logger.info(f"CSV saved to: {OUTPUT_PATH}")
-        try:
-            consumer.close()
-        except Exception:
-            pass
+        else:
+            # ELT single-output mode: merge all topic records
+            all_records = []
+            for recs in records_by_topic.values():
+                all_records.extend(recs)
 
-    return out_file
+            output_path = os.path.join(OUTPUT_PATH, output_file)
 
+            # Create DataFrame and Save
+            df = pd.DataFrame(all_records)
+            df.to_csv(output_path, index=False)
+            logger.info(f"Single-output ELT mode: wrote {len(df)} records → {output_path}")
+
+            try:
+                consumer.close()
+            except Exception:
+                pass
+
+            return output_path
 
 if __name__ == "__main__":
-    # Running this module directly will attempt to consume and always produce the CSV file
-    path = consumer_kafka()
+    # Example test run
+    path = consumer_kafka(output_file="test_output.csv")
     print(f"consumer finished, file: {path}")

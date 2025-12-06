@@ -35,6 +35,7 @@
                 <div class="team-members">
                     <span class="member-name">Sergio Barrera</span>
                     <span class="member-name">Ariel Buenfil</span>
+                    <span class="member-name">Moisés Carrillo</span>
                     <span class="member-name">Damaris Dzul</span>
                     <span class="member-name">Paulina Chiquete</span>
                     <span class="member-name">Diego Monroy</span>
@@ -49,7 +50,12 @@
                 <div class="checkpoint-card">
                     <div class="checkpoint-header">
                         <div class="checkpoint-number">✓</div>
-                        
+
+                        <div class="checkpoint-status completed">
+                            <i class="ti ti-circle-check"></i>
+                            <span>Individual</span>
+                        </div>
+
                         <div class="checkpoint-status completed">
                             <i class="ti ti-circle-check"></i>
                             <span>Completed</span>
@@ -57,7 +63,7 @@
                     </div>
                     
                     <div class="checkpoint-content">
-                        <h3>Data streaming visualization</h3>
+                        <h3>(TASK 1) Data streaming visualization - ETL</h3>
                         <p class="checkpoint-description">Public transportation minimal dashboard which aims to show which routes are the most used and the distribution of the usage based on the fare type.</p>
                         
                         <div class="checkpoint-topics">
@@ -74,10 +80,47 @@
                             <i class="ti ti-arrow-right"></i>
                             <span>Go to dashboard</span>
                         </a>
-                        <span class="checkpoint-completion">Completed: Nov 3, 2024</span>
                     </div>
                 </div>
                 </div>
+
+                <div class="checkpoint-card">
+                    <div class="checkpoint-header">
+                        <div class="checkpoint-number">✓</div>
+                        
+                        <div class="checkpoint-status completed">
+                            <i class="ti ti-circle-check"></i>
+                            <span>Individual</span>
+                        </div>
+
+                        <div class="checkpoint-status completed">
+                            <i class="ti ti-circle-check"></i>
+                            <span>Completed</span>
+                        </div>
+                    </div>
+                    
+                    <div class="checkpoint-content">
+                        <h3>(TASK 2) Data streaming visualization - ELT</h3>
+                        <p class="checkpoint-description">Public transportation minimal dashboard which aims to show which routes are the most used and the distribution of the usage based on the fare type.</p>
+                        
+                        <div class="checkpoint-topics">
+                            <div class="checkpoint-topics-list">
+                                <span class="topic-tag">Bar chart</span>
+                                <span class="topic-tag">Time series chart</span>
+                                <span class="topic-tag">1 KPI</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="checkpoint-footer">
+                        <a class="view-btn" href="{{ url_for ('urban_dashboard')}}">
+                            <i class="ti ti-arrow-right"></i>
+                            <span>Go to dashboard</span>
+                        </a>
+                    </div>
+                </div>
+                </div>
+
 
             </main>
 

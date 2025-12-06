@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 class Transformer:
 
@@ -92,6 +93,212 @@ class Transformer:
             return print(f'Processed dataset successfully saved in {self.saving_path}.')
         else:
             return print(f'Processed dataset successfully saved in {self.saving_path}.')
+        
+# ============================================================
+#               NEW URBAN SENSOR TRANSFORMATION
+# ============================================================
+
+class UrbanSensorTransformer:
+
+    def __init__(self, data: str, saving_path: str):
+        """
+        - data: Path of `urban-sensors.csv`
+        - saving_path: Path to save processed file.
+        """
+        self.data = data
+        self.saving_path = saving_path
+
+        try:
+            self.df = pd.read_csv(self.data)
+        except Exception:
+            raise FileNotFoundError(
+                f"Urban-sensor file {data} not found or unreadable."
+            )
+
+    # ------------------------------------------------------------
+    # Step 1 — Cleaning missing values
+    # ------------------------------------------------------------
+    def clean_missing(self, df: pd.DataFrame):
+        print(f"Missing values before cleaning: {df.isna().sum().sum()}")
+
+        # Strategy:
+        # - Drop rows missing sensor_id or timestamp (critical)
+        df = df.dropna(subset=["sensor_id", "ts"])
+
+        # - Fill numeric missing values with median
+        num_cols = df.select_dtypes(include=[np.number]).columns
+        for col in num_cols:
+            df[col] = df[col].fillna(df[col].median())
+
+        # - Fill categorical with mode
+        cat_cols = df.select_dtypes(include=["object"]).columns
+        for col in cat_cols:
+            df[col] = df[col].fillna(df[col].mode()[0])
+
+        print(f"Missing values after cleaning: {df.isna().sum().sum()}")
+        return df
+
+    # ------------------------------------------------------------
+    # Step 2 — Fixing data types
+    # ------------------------------------------------------------
+    def fix_types(self, df: pd.DataFrame):
+        df["ts"] = pd.to_datetime(df["ts"], errors="coerce")
+
+        df["vehicle_count"] = df["vehicle_count"].astype(int)
+        df["avg_speed_kmh"] = df["avg_speed_kmh"].astype(float)
+        df["noise_db"] = df["noise_db"].astype(float)
+        df["pm25"] = df["pm25"].astype(float)
+        df["pm10"] = df["pm10"].astype(float)
+
+        return df
+
+    # ------------------------------------------------------------
+    # Step 3 — Feature engineering
+    # ------------------------------------------------------------
+    def create_features(self, df: pd.DataFrame):
+        # Extract time components
+        df["hour"] = df["ts"].dt.hour
+        df["day"] = df["ts"].dt.date
+        df["is_peak_hour"] = df["hour"].isin([7, 8, 9, 17, 18, 19]).astype(int)
+
+        # Pollution index
+        df["pollution_idx"] = df["pm25"] * 0.6 + df["pm10"] * 0.4
+
+        # Noise class
+        df["noise_level"] = pd.cut(
+            df["noise_db"],
+            bins=[0, 40, 70, 120],
+            labels=["Low", "Moderate", "High"]
+        )
+
+        return df
+
+    # ------------------------------------------------------------
+    # Step 4 — Aggregations (for dashboards)
+    # ------------------------------------------------------------
+    def build_aggregations(self, df: pd.DataFrame):
+        agg_hourly = (
+            df.groupby(["location", "day", "hour"])
+            .agg({
+                "vehicle_count": "mean",
+                "avg_speed_kmh": "mean",
+                "pm25": "mean",
+                "pm10": "mean",
+                "pollution_idx": "mean",
+                "noise_db": "mean"
+            })
+            .reset_index()
+        )
+
+        # Save aggregated file
+        hourly_path = self.saving_path.replace(".csv", "_aggregated.csv")
+        agg_hourly.to_csv(hourly_path, index=False)
+        print(f"Aggregated dashboard file saved at {hourly_path}")
+
+        return df, agg_hourly
+
+    # ------------------------------------------------------------
+    # Master transformation pipeline
+    # ------------------------------------------------------------
+    def transform(self):
+        df = self.df.copy()
+        df = self.clean_missing(df)
+        df = self.fix_types(df)
+        df = self.create_features(df)
+        df, agg = self.build_aggregations(df)
+        return df
+
+    # ------------------------------------------------------------
+    # Save processed dataset
+    # ------------------------------------------------------------
+    def save(self):
+        df_processed = self.transform()
+        df_processed.to_csv(self.saving_path, index=False)
+        print(f"Urban-sensor processed dataset saved at {self.saving_path}")
+
+# ============================================================
+#               PRODUCT EVENT TRANSFORMATION
+# ============================================================
+
+class ProductEventTransformer:
+
+    def __init__(self, data: str, saving_path: str):
+        """
+        - data: Path of raw `product-events` csv
+        - saving_path: Path to save processed file.
+        """
+        self.data = data
+        self.saving_path = saving_path
+
+        try:
+            self.df = pd.read_csv(self.data)
+        except Exception:
+            # Create an empty DF if file is missing to avoid crashing
+            self.df = pd.DataFrame(columns=[
+                "event_id", "timestamp", "user_id", "session_id", "event_type", 
+                "product_id", "category", "price", "platform"
+            ])
+
+    def clean_and_format(self, df: pd.DataFrame):
+        # Ensure timestamp is datetime
+        if "timestamp" in df.columns:
+            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+        
+        # Fill optional fields for non-purchase events
+        if "purchase_amount" not in df.columns:
+            df["purchase_amount"] = 0.0
+        else:
+            df["purchase_amount"] = df["purchase_amount"].fillna(0.0)
+            
+        return df
+
+    def generate_kpis(self, df: pd.DataFrame):
+        """
+        Generates two aggregated datasets:
+        1. Category Performance (Views vs Revenue)
+        2. Funnel Analysis (View -> Cart -> Purchase counts)
+        """
+        if df.empty:
+            return None, None
+
+        # --- KPI 1: Category Performance ---
+        cat_stats = df.groupby("category").agg(
+            total_views=('event_type', lambda x: (x == 'product_view').sum()),
+            total_purchases=('event_type', lambda x: (x == 'purchase').sum()),
+            total_revenue=('purchase_amount', 'sum')
+        ).reset_index()
+        
+        # --- KPI 2: Overall Funnel ---
+        funnel_counts = df['event_type'].value_counts().reset_index()
+        funnel_counts.columns = ['stage', 'count']
+        
+        return cat_stats, funnel_counts
+
+    def transform(self):
+        df = self.df.copy()
+        df = self.clean_and_format(df)
+        
+        # Save the detailed processed data
+        df.to_csv(self.saving_path, index=False)
+        print(f"Processed product events saved at {self.saving_path}")
+
+        # Generate and save KPI dashboards
+        cat_stats, funnel = self.generate_kpis(df)
+        
+        if cat_stats is not None:
+            kpi_path_cat = self.saving_path.replace(".csv", "_kpi_category.csv")
+            cat_stats.to_csv(kpi_path_cat, index=False)
+            print(f"Category KPI saved at {kpi_path_cat}")
+
+        if funnel is not None:
+            kpi_path_funnel = self.saving_path.replace(".csv", "_kpi_funnel.csv")
+            funnel.to_csv(kpi_path_funnel, index=False)
+            print(f"Funnel KPI saved at {kpi_path_funnel}")
+            
+        return df
+
+    def save(self):
+        self.transform()
     
 if __name__ == '__main__':
     

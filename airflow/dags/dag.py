@@ -4,9 +4,10 @@ import time
 import pandas as pd
 from datetime import datetime
 from airflow.sdk import dag, task
-from my_kafka.producer.producer import run_everything
+from airflow.exceptions import AirflowFailException
 from my_kafka.consumer.consumer import consumer_kafka
 from utils.transformer import Transformer
+from my_kafka.producer.producer import KafkaProducerConf, KafkaStream
 
 def_args = {
     "owner":"Ariel",
@@ -19,7 +20,23 @@ def etl_dag():
 
     @task
     def extract_producer():
-        run_everything()
+
+        conf = KafkaProducerConf(bootstrap_servers="kafka:9092")
+        ks = KafkaStream(conf)
+
+        # run only urban-sensors
+        ks.run_single(
+            duration_minutes=0.1,
+            event_name="transportation-stats",
+            event_count=2
+        )
+
+        raw_csv = consumer_kafka(output_file='transportation.csv')
+
+        if not raw_csv or not os.path.exists(raw_csv):
+            raise AirflowFailException("Extract step failed. No transportation-stats CSV found.")
+
+        return raw_csv
     
     @task
     def extract_consumer():
