@@ -3,7 +3,7 @@
 <div style="text-align: center; margin: 20px 0;">
   <h3>Event-Driven ETL Pipeline with Real-time Data Processing</h3>
   <p><strong>University:</strong> Universidad Politécnica de Yucatán</p>
-  <p><strong>Course:</strong> Trends in Data Science (TDS) - 9th Quarter</p>
+  <p><strong>Course:</strong> Visual Modeling for Information - 9th Quarter</p>
   <p><strong>Student:</strong> Ariel Buenfil</p>
 </div>
 
